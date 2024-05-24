@@ -54,7 +54,7 @@ airdrop-contract 项目分为 contracts，test，scripts 这几个模块。
 1. 我们可以通过发送交易在 sepolia 测试网对合约进行测试，你需要再准备两个钱包，替换 hardhat.config.js 文件中的 `PRIVATE_KEY_USER` 和 `PRIVATE_KEY_USER2` 值。
 2. 替换 transactions.js 文件中的 `airdropAddress`，`airdropNFTAddress` 和 `coboNFTAddress` 值（用你实际部署的地址值）。
 3. 与 deploy.js 脚本类似，我们通过注释其他方法，保留需要执行的方法，去依次执行测试脚本。注意，每当执行完一个交易后，需要等待一段时间，直到交易状态被确认。
-4. 这里用一个例子来解释：注释其他方法，保留 `var txn = await coboNFT.mint(manager.address);console.log("txn:", txn);`，然后运行 `npx hardhat run scripts/transactions.js --network sepolia` 命令。得到txnId, 跳转到 Sepolia Explorer 浏览器 (URL: https://sepolia.etherscan.io)，搜索这个txnId，等待交易的状态变为成功。然后再依次执行后面的方法。最终运行 `await airdropNFT.balanceOf(manager.address);` 后可以看到该用户持有的airdropNFT的数量变为了1。
+4. 这里用一个例子来解释：注释其他方法，保留 `var txn = await coboNFT.mint(manager.address);console.log("txn:", txn);`，然后运行 `npx hardhat run scripts/transactions.js --network sepolia` 命令。得到txnId, 跳转到 Sepolia Explorer 浏览器搜索这个txnId，等待交易的状态变为成功。然后再依次执行后面的方法。最终运行 `await airdropNFT.balanceOf(manager.address);` 后可以看到该用户持有的airdropNFT的数量变为了1。
 5. 如果你想测试 `setAirdropTime` 方法，可以去 deploy.js 文件，按顺序执行 `await deployAirdropImplementationV2();` and `await updateAirdropImplementation(airdropAddress, airdropImplementationV2Address);` 去更新合约的实现。然后在 transactions.js 里使用 airdropImplementationV2 去执行 `setAirdropTime(uint256 _startTime, uint256 _endTime)` 方法。
 
 #### 4.1.5 附录
@@ -98,35 +98,33 @@ airdrop-service 项目分为 api-service 和 event-handler 这两个服务。
     5) 使用 transactions.js 脚本，发送 claimAirdrop 交易。然后转到 event-handler 中查看日志，可以看到 event-handler 接收到了 event 事件，并会把事件存到数据库。调用 api-service 的 checkAirdrop 接口，可以看到返回为 false 了，再调用 checkAirdropNums 接口，看到返回的 current 值比之前加1了。
     6) 使用 transactions.js 脚本，发送 airdropNFT.balanceOf 交易。可以查到测试用户持有的 airdropNFT 数量变成了1。
 
-测试的一些效果，也可以参考screenshots目录下的截图。
-
 ## 5. 安全风险分析
 
 针对空投合约，可能出现的安全风险如下：
 
 1. 重入攻击：指在执行合约函数时，恶意合约可以在函数结束前再次调用该函数，导致重复执行某些操作（如多次领取空投）。
-
-解决：通过在合约中 claimAirdrop 方法上加 nonReentrant，可以防止该风险。
+    
+    解决：通过在合约中 claimAirdrop 方法上加 nonReentrant，可以防止该风险。
 
 2. 权限漏洞：未经授权的用户可能会调用受限函数，从而操作合约状态或资产。
 
-解决：在合约中，对重要的方法，都加了权限验证 onlyOwner。
+    解决：在合约中，对重要的方法，都加了权限验证 onlyOwner。
 
 3. 时间漏洞：矿工可能通过操纵区块时间戳来影响空投的时间条件，导致空投在错误的时间进行。
 
-解决：设置了空投的开始、结束时间。并使用了 onlyDuringAirdrop 在领取空投前进行验证。
+    解决：设置了空投的开始、结束时间。并使用了 onlyDuringAirdrop 在领取空投前进行验证。
 
 4. DDOS攻击：恶意用户可能通过频繁调用合约函数，导致合约耗尽资源或被阻塞，影响其他用户的正常操作。
 
-解决：在合约中加上 rate limit 限制，来进行限速。可查看 AirdropImplementationV2 合约实现代码，已加上速率限制。
+    解决：在合约中加上 rate limit 限制，来进行限速。可查看 AirdropImplementationV2 合约实现代码，已加上速率限制。
 
 5. 整数溢出或下溢：计算过程中可能会超出整数的最大值和最小值，导致意料之外的问题。
 
-解决：合约中使用了 OpenZeppline 提供的 SafeMath 库来处理。
+    解决：合约中使用了 OpenZeppline 提供的 SafeMath 库来处理。
 
 5. 其他漏洞：可能存储一些其他暂时没有发现的漏洞。
 
-解决：合约是可升级合约，我们可以通过编写新的合约实现，去更新合约，且保持合约的地址和状态不变。以修复漏洞。
+    解决：合约是可升级合约，我们可以通过编写新的合约实现，去更新合约，且保持合约的地址和状态不变。以修复漏洞。
 
 ## 6. 吞吐量设计
 
